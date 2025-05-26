@@ -1,0 +1,40 @@
+# R related
+.Rhistory
+.RData
+.Rproj.user/
+.Ruserdata
+
+# Python related
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+*.eggs/
+*.pytest_cache/
+.ipynb_checkpoints/
+venv/
+env/
+*.env
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Data files (if you want to ignore big raw data)
+*.csv
+*.tsv
+*.mtx
+
+# Output reports and figures (if you want to ignore outputs and keep only source)
+reports/*.html
+figures/
+plots/
+
+# MacOS files
+.DS_Store
+
+# VSCode settings
+.vscode/
+
+# Logs and temporary files
+*.log
+*.tmp
