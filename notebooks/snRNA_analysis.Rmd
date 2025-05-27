@@ -1,0 +1,250 @@
+---
+title: "snRNA-seq Analysis"
+output: html_document
+date: "2025-05-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. Load and filter snRNA-seq data. Cluster based on transcription and plot on UMAP by sample origin.
+
+```{r}
+library(Seurat)
+library(Matrix)
+library(dplyr)
+library(ggplot2)
+
+# Define path to data
+data_dir <- "/path/to/data"
+
+# Load files
+count_matrix <- readMM(file.path(data_dir, "DGE.mtx"))
+genes <- read.csv(file.path(data_dir, "all_genes.csv"))
+cell_metadata <- read.csv(file.path(data_dir, "cell_metadata.csv"))
+rownames(count_matrix) <- cell_metadata$bc_wells
+colnames(count_matrix) <- make.unique(genes$gene_name)  # Ensures each gene only has one row
+
+# Transpose matrix for Suerat
+count_matrix_t <- t(count_matrix)
+
+# Create initial Seurat object
+seurat_obj <- CreateSeuratObject(counts = count_matrix_t, meta.data = cell_metadata)
+cat("Number of cells before filtering:", ncol(seurat_obj), "\n")
+
+# Filter for desired samples
+seurat_obj <- subset(seurat_obj, subset = sample %in% c("HC1", "SOR1"))
+cat("After sample filter (HC1 + SOR1):", ncol(seurat_obj), "cells\n")
+
+# Plot RNA Counts for all cells to determine multiplet cutoff
+Idents(seurat_obj) <- "all cells"
+
+VlnPlot(seurat_obj, features = "nCount_RNA", pt.size = 0.1) +
+  geom_hline(yintercept = 35000, linetype = "dashed", color = "red", linewidth = 0.5) +
+  NoLegend()
+
+# Filter high RNA count (multiplet) cells
+seurat_obj <- subset(seurat_obj, subset = nCount_RNA < 35000)
+cat("After RNA count filter (< 35,000):", ncol(seurat_obj), "cells\n")
+
+# Add mitochondrial percentage to dataset
+seurat_obj[["percent.mt"]] <- PercentageFeatureSet(seurat_obj, pattern = "^mt-")
+
+# Filter high mitochondrial percentage cells
+seurat_obj <- subset(seurat_obj, subset = percent.mt < 10)
+cat("After mitochondrial filter (< 10%):", ncol(seurat_obj), "cells\n")
+
+# Preprocessing for filtered object
+seurat_obj <- NormalizeData(seurat_obj)
+seurat_obj <- FindVariableFeatures(seurat_obj)
+seurat_obj <- ScaleData(seurat_obj)
+seurat_obj <- RunPCA(seurat_obj)
+seurat_obj <- RunUMAP(seurat_obj, dims = 1:20)
+DimPlot(seurat_obj, reduction = "umap", group.by = "sample", pt.size = 0.1)
+```
+
+2. Identify the cluster where theta and gamma genes are most differentially expressed between HC1 and SOR1, ranked by p-value.
+
+```{r}
+library(ggplot2)
+
+# Initialize markers
+theta_marker <- "Hcn1"
+gamma_marker <- "Pvalb"
+
+# Cluster the data
+seurat_obj <- FindNeighbors(seurat_obj, dims = 1:20)
+seurat_obj <- FindClusters(seurat_obj, resolution = 0.5)
+
+# Visualize clusters
+DimPlot(seurat_obj, reduction = "umap", label = TRUE)
+
+# Feature plot to visualize marker expression
+FeaturePlot(seurat_obj, features = c(theta_marker, gamma_marker), ncol = 2)
+
+# Create data frames to store p-values for each cluster for both markers
+clusters <- unique(seurat_obj$seurat_clusters)
+theta_p_values <- data.frame(cluster = clusters, p_value = NA, mean_diff = NA)
+gamma_p_values <- data.frame(cluster = clusters, p_value = NA, mean_diff = NA)
+
+# For each cluster, calculate differential expression of markers between HC1 and SOR1
+for (cluster in clusters) {
+  # Subset the data for this cluster
+  cluster_cells <- subset(seurat_obj, subset = seurat_clusters == cluster)
+  
+  # THETA MARKER ANALYSIS
+  # Check if the theta marker exists in the dataset
+  if(theta_marker %in% rownames(GetAssayData(cluster_cells))) {
+    # Get expression values for each sample within this cluster
+    hc1_theta_expr <- GetAssayData(subset(cluster_cells, subset = sample == "HC1"), 
+                                  slot = "data")[theta_marker,]
+    sor1_theta_expr <- GetAssayData(subset(cluster_cells, subset = sample == "SOR1"), 
+                                   slot = "data")[theta_marker,]
+    
+    # Only perform test if we have cells in both conditions
+    if(length(hc1_theta_expr) > 0 && length(sor1_theta_expr) > 0) {
+      # Perform Wilcoxon test
+      theta_test_result <- wilcox.test(hc1_theta_expr, sor1_theta_expr)
+      
+      # Calculate mean difference (SOR1 - HC1) to determine direction of change
+      theta_mean_diff <- mean(sor1_theta_expr) - mean(hc1_theta_expr)
+      
+      # Store p-value and mean difference
+      theta_p_values$p_value[theta_p_values$cluster == cluster] <- theta_test_result$p.value
+      theta_p_values$mean_diff[theta_p_values$cluster == cluster] <- theta_mean_diff
+    }
+  }
+  
+  # GAMMA MARKER ANALYSIS
+  # Ensure gamma marker exists in the dataset
+  if(gamma_marker %in% rownames(GetAssayData(cluster_cells))) {
+    # Get expression values for each sample within this cluster
+    hc1_gamma_expr <- GetAssayData(subset(cluster_cells, subset = sample == "HC1"), 
+                                  slot = "data")[gamma_marker,]
+    sor1_gamma_expr <- GetAssayData(subset(cluster_cells, subset = sample == "SOR1"), 
+                                   slot = "data")[gamma_marker,]
+    
+    # Perform if we have cells in both conditions
+    if(length(hc1_gamma_expr) > 0 && length(sor1_gamma_expr) > 0) {
+      # Perform Wilcoxon test
+      gamma_test_result <- wilcox.test(hc1_gamma_expr, sor1_gamma_expr)
+      
+      # Calculate mean difference (SOR1 - HC1) to determine direction of change
+      gamma_mean_diff <- mean(sor1_gamma_expr) - mean(hc1_gamma_expr)
+      
+      # Store p-value and mean difference
+      gamma_p_values$p_value[gamma_p_values$cluster == cluster] <- gamma_test_result$p.value
+      gamma_p_values$mean_diff[gamma_p_values$cluster == cluster] <- gamma_mean_diff
+    }
+  }
+}
+
+# Apply FDR correction for multiple testing
+theta_p_values$p_adj <- p.adjust(theta_p_values$p_value, method = "BH")
+gamma_p_values$p_adj <- p.adjust(gamma_p_values$p_value, method = "BH")
+
+# Display results
+theta_p_values <- theta_p_values[order(theta_p_values$p_value),]
+gamma_p_values <- gamma_p_values[order(gamma_p_values$p_value),]
+
+cat("Theta marker (", theta_marker, ") differential expression by cluster:\n")
+print(theta_p_values)
+
+cat("\nGamma marker (", gamma_marker, ") differential expression by cluster:\n")
+print(gamma_p_values)
+
+# Identify the clusters with the lowest p-values
+best_theta_cluster <- theta_p_values$cluster[1]
+best_gamma_cluster <- gamma_p_values$cluster[1]
+
+# Create new columns in metadata to highlight the best clusters
+seurat_obj$theta_highlight <- ifelse(seurat_obj$seurat_clusters == best_theta_cluster, 
+                                   "Top Theta Cluster", "Other Clusters")
+seurat_obj$gamma_highlight <- ifelse(seurat_obj$seurat_clusters == best_gamma_cluster, 
+                                   "Top Gamma Cluster", "Other Clusters")
+
+# Create a combined highlighting scheme
+seurat_obj$oscillation_clusters <- "Other Clusters"
+seurat_obj$oscillation_clusters[seurat_obj$seurat_clusters == best_theta_cluster] <- "Top Theta Cluster"
+seurat_obj$oscillation_clusters[seurat_obj$seurat_clusters == best_gamma_cluster] <- "Top Gamma Cluster"
+
+# Plot UMAP with the best theta cluster highlighted
+DimPlot(seurat_obj, 
+              reduction = "umap", 
+              group.by = "theta_highlight",
+              cols = c("Top Theta Cluster" = "red", "Other Clusters" = "grey"),
+              pt.size = 0.5) +
+  ggtitle(paste0("Top Theta Cluster: ", best_theta_cluster)) +
+  theme(plot.title = element_text(size = 10))
+
+# Plot UMAP with the best gamma cluster highlighted
+DimPlot(seurat_obj, 
+              reduction = "umap", 
+              group.by = "gamma_highlight",
+              cols = c("Top Gamma Cluster" = "blue", "Other Clusters" = "grey"),
+              pt.size = 0.5) +
+  ggtitle(paste0("Top Gamma Cluster: ", best_gamma_cluster)) +
+  theme(plot.title = element_text(size = 10))
+
+# Plot with both clusters highlighted
+DimPlot(seurat_obj, 
+              reduction = "umap", 
+              group.by = "oscillation_clusters",
+              cols = c("Top Theta Cluster" = "red", 
+                      "Top Gamma Cluster" = "blue", 
+                      "Other Clusters" = "grey"),
+              pt.size = 0.5) +
+  ggtitle("Top Oscillation Marker Clusters") +
+  theme(plot.title = element_text(size = 10))
+```
+
+3. Use marker genes to determine which cell types theta and gamma wave transcription is most differentially expressed in
+
+```{r}
+# Narrowed down, most informative CNS cell type markers
+canonical_markers <- c(
+  # Neurons (general)
+  "Rbfox3", "Snap25", "Syt1", "Eno2",
+  
+  # Glutamatergic neurons
+  "Slc17a7", "Slc17a6", "Grin1",
+  
+  # GABAergic neurons
+  "Gad1", "Gad2",
+  
+  # Astrocytes
+  "Gfap", "Aqp4", "Slc1a2", "Slc1a3"
+)
+
+# Keep only markers present in the dataset
+canonical_markers <- canonical_markers[canonical_markers %in% rownames(seurat_obj)]
+
+# DotPlot across all clusters
+DotPlot(seurat_obj, features = canonical_markers, group.by = "seurat_clusters") +
+  RotatedAxis() +
+  ggtitle("Canonical Cell Type Marker Expression by Cluster") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+# Define cluster IDs for theta and gamma oscillation neuronal sub types
+theta_cluster <- 4
+gamma_cluster <- 7
+
+# Subset Seurat object for theta and gamma clusters
+theta_gamma_cells <- WhichCells(seurat_obj, idents = c(theta_cluster, gamma_cluster))
+seurat_theta_gamma <- subset(seurat_obj, cells = theta_gamma_cells)
+
+# Add a new cluster label: "theta" or "gamma"
+seurat_theta_gamma$theta_gamma_label <- ifelse(
+  Idents(seurat_theta_gamma) == theta_cluster, "theta", "gamma"
+)
+
+# Set new identities for plotting
+Idents(seurat_theta_gamma) <- "theta_gamma_label"
+
+# Plot canonical marker expression in theta vs gamma clusters
+DotPlot(seurat_theta_gamma, features = canonical_markers) +
+  RotatedAxis() +
+  ggtitle("Canonical Marker Expression: Theta vs Gamma Clusters") +
+  theme(plot.title = element_text(hjust = 0.5))
+```

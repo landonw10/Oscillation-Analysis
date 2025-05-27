@@ -1,0 +1,240 @@
+---
+title: "Data Integration Analysis"
+output: html_document
+date: "2025-05-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+1. Deconvolution of Visium data using snRNA-seq data
+
+```{r}
+# Load necessary libraries
+library(Seurat)
+library(Matrix)
+library(ggplot2)
+library(dplyr)
+library(spacexr)
+library(patchwork)
+
+# Define paths (make sure to include backslash after Visium path)
+data_dir <- "/path/to/snRNA/data"
+spatial_dir <- "/path/to/Visium/data/"
+
+# Load snRNA-seq data files
+count_matrix <- readMM(file.path(data_dir, "DGE.mtx"))
+genes <- read.csv(file.path(data_dir, "all_genes.csv"))
+cell_metadata <- read.csv(file.path(data_dir, "cell_metadata.csv"))
+
+# Filter for desired samples
+sor1_cells <- cell_metadata$sample == "SOR1"
+cell_metadata <- cell_metadata[sor1_cells, ]
+count_matrix <- count_matrix[sor1_cells, ]
+
+# Set up count matrix with proper row and column names
+count_matrix <- t(count_matrix) # Genes should be rows, cells should be columns
+rownames(count_matrix) <- make.unique(genes$gene_name)
+colnames(count_matrix) <- cell_metadata$bc_wells
+
+# Remove duplicate gene names if any
+count_matrix <- count_matrix[!duplicated(rownames(count_matrix)), ]
+
+# Create Seurat object and perform standard preprocessing
+sn_obj <- CreateSeuratObject(counts = count_matrix, meta.data = cell_metadata)
+sn_obj[["percent.mt"]] <- PercentageFeatureSet(sn_obj, pattern = "^mt-")
+
+# multiplet filtering
+sn_obj <- subset(sn_obj, subset = nCount_RNA < 35000 & percent.mt < 10)
+
+# Normalize, find variable features, scale data, and run PCA
+sn_obj <- NormalizeData(sn_obj)
+sn_obj <- FindVariableFeatures(sn_obj, nfeatures = 2000)
+sn_obj <- ScaleData(sn_obj)
+sn_obj <- RunPCA(sn_obj, verbose = FALSE)
+
+# Find neighbors and clusters
+sn_obj <- FindNeighbors(sn_obj, dims = 1:30)
+sn_obj <- FindClusters(sn_obj, resolution = 0.5)
+
+# Run UMAP for visualization
+sn_obj <- RunUMAP(sn_obj, dims = 1:30)
+
+# Define cell type markers
+# Excitatory pyramidal neuron markers (associated with theta oscillations)
+pyr_markers <- c("Neurod6", "Camk2a", "Slc17a7", "Satb2")
+
+# Inhibitory interneuron markers (associated with gamma oscillations)
+int_markers <- c("Gad1", "Gad2", "Sst", "Vip")
+
+# Oscillation-related markers
+theta_marker <- "Hcn1"
+gamma_marker <- "Pvalb"
+
+# Ensure all markers are present in the dataset
+all_markers <- c(pyr_markers, int_markers, theta_marker, gamma_marker)
+missing_markers <- all_markers[!all_markers %in% rownames(sn_obj)]
+if (length(missing_markers) > 0) {
+  print(paste("Warning: The following markers are missing from the dataset:", 
+              paste(missing_markers, collapse = ", ")))
+}
+
+# Run differential expression to identify cluster markers
+cluster_markers <- FindAllMarkers(sn_obj, 
+                                 only.pos = TRUE, 
+                                 min.pct = 0.25, 
+                                 logfc.threshold = 0.25)
+
+# Find clusters enriched for pyramidal and interneuron markers
+pyr_enriched <- cluster_markers %>%
+  filter(gene %in% pyr_markers & p_val_adj < 0.05) %>%
+  group_by(cluster) %>%
+  summarize(marker_count = n()) %>%
+  arrange(desc(marker_count))
+
+int_enriched <- cluster_markers %>%
+  filter(gene %in% int_markers & p_val_adj < 0.05) %>%
+  group_by(cluster) %>%
+  summarize(marker_count = n()) %>%
+  arrange(desc(marker_count))
+
+# Identify the top clusters for each cell type
+pyr_cluster <- as.character(pyr_enriched$cluster[1])
+int_cluster <- as.character(int_enriched$cluster[1])
+
+print(paste("Pyramidal neuron cluster:", pyr_cluster))
+print(paste("Interneuron cluster:", int_cluster))
+
+# Visualize marker expression in the identified clusters
+p1 <- VlnPlot(sn_obj, features = pyr_markers, pt.size = 0, 
+        idents = c(pyr_cluster), ncol = 2) + 
+  ggtitle("Pyramidal Neuron Markers") + NoLegend()
+
+p2 <- VlnPlot(sn_obj, features = int_markers, pt.size = 0, 
+        idents = c(int_cluster), ncol = 2) + 
+  ggtitle("Interneuron Markers") + NoLegend()
+
+p3 <- FeaturePlot(sn_obj, features = c(theta_marker, gamma_marker), 
+                 ncol = 2)
+
+print(p1 / p2 / p3)
+
+# Check correlation between cell type markers and oscillation markers
+# in single-nucleus data first
+DefaultAssay(sn_obj) <- "RNA"
+gene_expr <- GetAssayData(sn_obj, slot = "data")
+
+# Define the genes to explore
+pyr_expr <- colMeans(gene_expr[pyr_markers, , drop = FALSE])
+int_expr <- colMeans(gene_expr[int_markers, , drop = FALSE])
+hcn1_expr <- gene_expr[theta_marker, ]
+pvalb_expr <- gene_expr[gamma_marker, ]
+
+# Add to metadata
+sn_obj$pyr_score <- pyr_expr
+sn_obj$int_score <- int_expr
+
+# Calculate correlations
+pyr_hcn1_cor <- cor(pyr_expr, hcn1_expr, method = "spearman")
+int_pvalb_cor <- cor(int_expr, pvalb_expr, method = "spearman")
+
+print(paste("Single-nucleus correlation - Pyramidal score vs Hcn1:", pyr_hcn1_cor))
+print(paste("Single-nucleus correlation - Interneuron score vs Pvalb:", int_pvalb_cor))
+
+# Visualize correlations
+p4 <- FeatureScatter(sn_obj, feature1 = "pyr_score", feature2 = theta_marker, 
+                   pt.size = 0.5) +
+  ggtitle(paste("Corr:", round(pyr_hcn1_cor, 3)))
+
+p5 <- FeatureScatter(sn_obj, feature1 = "int_score", feature2 = gamma_marker, 
+                   pt.size = 0.5) +
+  ggtitle(paste("Corr:", round(int_pvalb_cor, 3)))
+
+print(p4 + p5)
+
+# Set up for spatial deconvolution with RCTD
+# Create reference for RCTD
+ref <- Reference(sn_obj[["RNA"]]$counts, sn_obj$seurat_clusters)
+
+# Load spatial data
+spatial_data <- Read10X_h5(file.path(spatial_dir, "filtered_feature_bc_matrix.h5"))
+spatial_positions <- read.csv(file.path(spatial_dir, "spatial/tissue_positions_list.csv"), 
+                             header = FALSE)
+colnames(spatial_positions) <- c("barcode", "in_tissue", "array_row", "array_col", "x", "y")
+rownames(spatial_positions) <- spatial_positions$barcode
+
+# Create spatial RNA object
+coords <- spatial_positions[, c("x", "y")]
+visium_obj <- SpatialRNA(coords, spatial_data)
+
+# Create and run RCTD
+my_rctd <- create.RCTD(visium_obj, ref, max_cores = 4) # Adjust cores based on your system
+my_rctd <- run.RCTD(my_rctd, doublet_mode = "doublet")
+
+# Extract results
+results <- my_rctd@results
+norm_weights <- normalize_weights(results$weights)
+
+# Get cell type proportions
+pyr_props <- norm_weights[, pyr_cluster]
+int_props <- norm_weights[, int_cluster]
+
+# Load spatial data as Seurat object for visualization
+vis_seurat <- Load10X_Spatial(spatial_dir)
+vis_seurat <- NormalizeData(vis_seurat)
+
+selected_spots <- rownames(norm_weights)
+
+# Add cell type proportions to the Seurat object
+vis_seurat$pyr_prop <- NA
+vis_seurat$int_prop <- NA
+vis_seurat@meta.data[selected_spots, "pyr_prop"] <- pyr_props
+vis_seurat@meta.data[selected_spots, "int_prop"] <- int_props
+
+# Visualize cell type proportions
+p6 <- SpatialFeaturePlot(vis_seurat, features = "pyr_prop", pt.size.factor = 2) +
+     ggtitle("Pyramidal Neuron Proportion")
+p7 <- SpatialFeaturePlot(vis_seurat, features = "int_prop", pt.size.factor = 2) +
+     ggtitle("Interneuron Proportion")
+print(p6 + p7)
+```
+
+2. Spearman to test for correlation
+
+```{r}
+# Add gene expression for Hcn1 and Pvalb to the spatial object
+DefaultAssay(vis_seurat) <- "Spatial"
+
+# Get normalized expression values for the markers
+hcn1_spatial <- GetAssayData(vis_seurat, slot = "data")[theta_marker, ]
+pvalb_spatial <- GetAssayData(vis_seurat, slot = "data")[gamma_marker, ]
+
+# Add to metadata for correlation analysis
+vis_seurat$Hcn1_expr <- NA
+vis_seurat$Pvalb_expr <- NA
+vis_seurat@meta.data[names(hcn1_spatial), "Hcn1_expr"] <- hcn1_spatial
+vis_seurat@meta.data[names(pvalb_spatial), "Pvalb_expr"] <- pvalb_spatial
+
+# Identify spots that have both cell type proportions and gene expression data
+selected_spots_with_data <- intersect(selected_spots, rownames(vis_seurat@meta.data))
+
+# Calculate Spearman correlations
+pyr_hcn1_cor <- cor(
+  vis_seurat@meta.data[selected_spots_with_data, "pyr_prop"], 
+  vis_seurat@meta.data[selected_spots_with_data, "Hcn1_expr"], 
+  method = "spearman", 
+  use = "complete.obs"
+)
+
+int_pvalb_cor <- cor(
+  vis_seurat@meta.data[selected_spots_with_data, "int_prop"], 
+  vis_seurat@meta.data[selected_spots_with_data, "Pvalb_expr"], 
+  method = "spearman", 
+  use = "complete.obs"
+)
+
+# Print the results
+print(paste("Spatial correlation - Pyramidal cells vs Hcn1:", pyr_hcn1_cor))
+print(paste("Spatial correlation - Interneurons vs Pvalb:", int_pvalb_cor))
+```
