@@ -6,8 +6,8 @@ Each notebook corresponds to a specific pipeline or analytical step and includes
 
 ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-snRNA-seq-analysis -> Single-nucleus RNA-seq analysis identifying neuronal subtypes associated with theta and gamma oscillations.
+snRNA_analysis -> Single-nucleus RNA-seq analysis identifying neuronal subtypes associated with theta and gamma oscillations.
 
-Visium analysis -> Visium spatial transcriptomics analysis to map the spatial distribution of theta and gamma oscillation markers.
+Visium_analysis -> Visium spatial transcriptomics analysis to map the spatial distribution of theta and gamma oscillation markers.
 
-Data integration analysis -> Data integration analysis of snRNA-seq and Visium spatial transcriptomics data to identify and map pyramidal and interneuron cell types linked to theta and gamma oscillations, using Seurat and RCTD deconvolution.
+Data_integration_analysis -> Data integration analysis of snRNA-seq and Visium spatial transcriptomics data to identify and map pyramidal and interneuron cell types linked to theta and gamma oscillations, using Seurat and RCTD deconvolution.
