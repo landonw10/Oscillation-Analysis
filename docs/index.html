@@ -1,1 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oscillation Analysis Reports</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            font-size: 1.2em;
+        }
+        .description {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 6px;
+            margin-bottom: 40px;
+            border-left: 4px solid #3498db;
+        }
+        .reports-grid {
+            display: grid;
+            gap: 25px;
+            margin-top: 30px;
+        }
+        .report-card {
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 25px;
+            background: #fdfdfd;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .report-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            border-color: #3498db;
+        }
+        .report-title {
+            font-size: 1.4em;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .report-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .report-link:hover {
+            text-decoration: underline;
+        }
+        .report-description {
+            color: #555;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        .pipeline-number {
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: #3498db;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e1e8ed;
+            color: #7f8c8d;
+        }
+        .github-link {
+            color: #3498db;
+            text-decoration: none;
+        }
+        .github-link:hover {
+            text-decoration: underline;
+        }
+        .tech-stack {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        .tech-badge {
+            background: #e8f4fd;
+            color: #2980b9;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Theta and Gamma Oscillation Analysis</h1>
+        <p class="subtitle">Neural Oscillation Networks in Spatial Context created by Landon Wellendorf</p>
+        
+        <div class="description">
+            <p><strong>Integrated single-nucleus RNA-seq and spatial transcriptomics</strong> to map cellular and molecular organization of theta and gamma oscillation networks in hippocampal and cortical circuits during spatial object recognition. This analysis identifies distinct neuronal subtypes driving oscillatory patterns and their spatial distribution.</p>
+        </div>
 
+        <div class="reports-grid">
+            <div class="report-card">
+                <div class="pipeline-number">1</div>
+                <div class="report-title">
+                    <a href="snRNA_seq_analysis.html" class="report-link">Single-Nucleus RNA-seq Analysis</a>
+                </div>
+                <div class="report-description">
+                    Single-nucleus RNA-seq analysis identifying neuronal subtypes related to theta and gamma oscillations. Includes cell type classification, differential expression analysis, and oscillation marker identification.
+                </div>
+                <div class="tech-stack">
+                    <span class="tech-badge">R/Seurat</span>
+                    <span class="tech-badge">Wilcoxon Tests</span>
+                    <span class="tech-badge">UMAP</span>
+                    <span class="tech-badge">Cell Clustering</span>
+                </div>
+            </div>
+
+            <div class="report-card">
+                <div class="pipeline-number">2</div>
+                <div class="report-title">
+                    <a href="Visium_analysis.html" class="report-link">Spatial Transcriptomics Analysis</a>
+                </div>
+                <div class="report-description">
+                    Spatial transcriptomics analysis mapping theta and gamma oscillation markers across tissue architecture. Visualizes spatial distribution of neural oscillation patterns in brain tissue sections.
+                </div>
+                <div class="tech-stack">
+                    <span class="tech-badge">Python/scanpy</span>
+                    <span class="tech-badge">Visium</span>
+                    <span class="tech-badge">Spatial Clustering</span>
+                    <span class="tech-badge">Marker Mapping</span>
+                </div>
+            </div>
+
+            <div class="report-card">
+                <div class="pipeline-number">3</div>
+                <div class="report-title">
+                    <a href="Data_integration_analysis.html" class="report-link">Data Integration & Deconvolution</a>
+                </div>
+                <div class="report-description">
+                    Integration of snRNA-seq and Visium data to deconvolve spatial cell types linked to oscillations. Uses RCTD deconvolution to estimate cell type proportions and validate oscillation-cell type relationships.
+                </div>
+                <div class="tech-stack">
+                    <span class="tech-badge">R/Seurat</span>
+                    <span class="tech-badge">RCTD</span>
+                    <span class="tech-badge">Deconvolution</span>
+                    <span class="tech-badge">Spearman Correlation</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>📊 <strong>Data Source:</strong> <a href="https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE223066" class="github-link">GSE223066 - Gene Expression Omnibus</a></p>
+            <p>💻 <strong>Source Code:</strong> <a href="https://github.com/landonw10/Oscillation-Analysis" class="github-link">View on GitHub</a></p>
+        </div>
+    </div>
+</body>
+</html>
