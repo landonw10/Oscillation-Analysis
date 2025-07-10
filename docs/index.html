@@ -39,6 +39,58 @@
             margin-bottom: 40px;
             border-left: 4px solid #3498db;
         }
+        .full-report-card {
+            display: block;
+            border: 2px solid #e1e8ed;
+            border-radius: 12px;
+            padding: 30px;
+            background: linear-gradient(135deg, #fdfdfd 0%, #f8f9fa 100%);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            cursor: pointer;
+            margin-bottom: 50px;
+        }
+        .full-report-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(52, 152, 219, 0.2);
+            border-color: #3498db;
+            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+        }
+        .full-report-content {
+            display: flex;
+            align-items: center;
+            gap: 25px;
+        }
+        .full-report-icon {
+            font-size: 3em;
+            color: #3498db;
+            flex-shrink: 0;
+        }
+        .full-report-text {
+            flex: 1;
+        }
+        .full-report-text h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
+            color: #2c3e50;
+            font-weight: 600;
+        }
+        .full-report-text p {
+            margin: 0;
+            color: #555;
+            line-height: 1.4;
+        }
+        .full-report-arrow {
+            font-size: 1.8em;
+            color: #3498db;
+            font-weight: bold;
+            flex-shrink: 0;
+            transition: transform 0.3s ease;
+        }
+        .full-report-card:hover .full-report-arrow {
+            transform: translateX(5px);
+        }
         .reports-grid {
             display: grid;
             gap: 25px;
@@ -129,6 +181,18 @@
         <div class="description">
             <p><strong>Integrated single-nucleus RNA-seq and spatial transcriptomics</strong> to map cellular and molecular organization of theta and gamma oscillation networks in hippocampal and cortical circuits of mice during spatial object recognition. This analysis identifies distinct neuronal subtypes driving oscillatory patterns and their spatial distribution.</p>
         </div>
+
+        <!-- Full Report Section -->
+        <a href="Oscillation_Networks_Report.pdf" class="full-report-card">
+            <div class="full-report-content">
+                <div class="full-report-icon">📄</div>
+                <div class="full-report-text">
+                    <h3>View Complete Analysis Report</h3>
+                    <p>View the report summarizing methodology, results, and biological interpretation</p>
+                </div>
+                <div class="full-report-arrow">→</div>
+            </div>
+        </a>
 
         <div class="reports-grid">
             <div class="report-card">
